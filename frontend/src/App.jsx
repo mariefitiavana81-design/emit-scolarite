@@ -3,9 +3,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import Login from './pages/Login';
 import StudentDashboard from './pages/student/StudentDashboard';
-import AdminDashboard from './pages/admin/AdminDashboard';
+import DelegateDashboard from './pages/student/DelegateDashboard';
 
-// Composant pour protéger les routes en fonction du rôle
 const ProtectedRoute = ({ children, allowedRoles }) => {
     const token = localStorage.getItem('token');
     const role = localStorage.getItem('role');
@@ -15,8 +14,9 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     }
 
     if (allowedRoles && !allowedRoles.includes(role)) {
-        // Rediriger vers l'espace approprié si le rôle n'a pas les droits
-        return <Navigate to={role === 'admin' || role === 'agent' ? '/admin' : '/student'} replace />;
+        if (role === 'admin' || role === 'agent') return <Navigate to="/admin" replace />;
+        if (role === 'delegue') return <Navigate to="/delegate" replace />;
+        return <Navigate to="/student" replace />;
     }
 
     return children;
@@ -26,20 +26,26 @@ function App() {
     return (
         <Router>
             <Routes>
-                {/* Route publique de connexion */}
                 <Route path="/login" element={<Login />} />
 
-                {/* Routes protégées Étudiant & Délégué (Votre partie) */}
                 <Route 
                     path="/student" 
                     element={
-                        <ProtectedRoute allowedRoles={['etudiant', 'delegue']}>
+                        <ProtectedRoute allowedRoles={['etudiant']}>
                             <StudentDashboard />
                         </ProtectedRoute>
                     } 
                 />
 
-                {/* Routes protégées Admin & Agent (Partie de votre collègue) */}
+                <Route 
+                    path="/delegate" 
+                    element={
+                        <ProtectedRoute allowedRoles={['delegue']}>
+                            <DelegateDashboard />
+                        </ProtectedRoute>
+                    } 
+                />
+
                 <Route 
                     path="/admin" 
                     element={
@@ -52,7 +58,6 @@ function App() {
                     } 
                 />
 
-                {/* Redirection par défaut vers /login */}
                 <Route path="*" element={<Navigate to="/login" replace />} />
             </Routes>
         </Router>

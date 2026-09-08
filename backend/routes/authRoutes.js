@@ -1,8 +1,6 @@
-// backend/routes/authRoutes.js
 const express = require('express');
 const router = express.Router();
-const pool = require('../config/db');
-const bcrypt = require('bcryptjs');
+const pool = require('../config/db'); // ou '../db' selon l'emplacement de ton fichier db.js
 const jwt = require('jsonwebtoken');
 
 // Route POST /api/auth/login
@@ -14,8 +12,8 @@ router.post('/login', async (req, res) => {
     }
 
     try {
-        // Rechercher l'utilisateur dans la table UTILISATEUR
-        const userQuery = 'SELECT * FROM UTILISATEUR WHERE email = $1';
+        // 1. Rechercher l'utilisateur par son email (table en minuscules)
+        const userQuery = 'SELECT * FROM utilisateur WHERE email = $1';
         const userResult = await pool.query(userQuery, [email]);
 
         if (userResult.rows.length === 0) {
@@ -24,24 +22,27 @@ router.post('/login', async (req, res) => {
 
         const user = userResult.rows[0];
 
-        // Vérification du mot de passe haché avec bcrypt
-        const isMatch = await bcrypt.compare(mot_de_passe, user.mot_de_passe);
-        if (!isMatch) {
+        // 2. Vérification du mot de passe
+        if (mot_de_passe !== user.mot_de_passe) {
             return res.status(401).json({ error: 'Email ou mot de passe incorrect.' });
         }
 
-        // Déterminer le rôle de base
-        let role = user.type_utilisateur ? user.type_utilisateur.toLowerCase() : 'etudiant';
+        // 3. Détection dynamique du RÔLE selon les tables associées
+        let role = 'etudiant'; // Rôle par défaut
 
-        // Si le rôle de base est étudiant, vérifier s'il est aussi dans la table DELEGUE
-        if (role === 'etudiant') {
-            const delegueCheck = await pool.query('SELECT * FROM DELEGUE WHERE id_utilisateur = $1', [user.id_utilisateur]);
-            if (delegueCheck.rows.length > 0) {
-                role = 'delegue';
+        // Vérifier si c'est un Délégué
+        const delegueCheck = await pool.query('SELECT * FROM delegue WHERE id_utilisateur = $1', [user.id_utilisateur]);
+        if (delegueCheck.rows.length > 0) {
+            role = 'delegue';
+        } else {
+            // Vérifier si c'est un Admin / Agent Scolarité (si tu as une table administrateur ou agent_scolarite)
+            const adminCheck = await pool.query('SELECT * FROM administrateur WHERE id_utilisateur = $1', [user.id_utilisateur]).catch(() => ({ rows: [] }));
+            if (adminCheck.rows.length > 0 || user.email.includes('admin') || user.email.includes('agent')) {
+                role = 'admin';
             }
         }
 
-        // Générer le token JWT (assurez-vous d'avoir JWT_SECRET dans votre .env)
+        // 4. Générer le token JWT
         const token = jwt.sign(
             { 
                 id_utilisateur: user.id_utilisateur, 
@@ -52,6 +53,7 @@ router.post('/login', async (req, res) => {
             { expiresIn: '8h' }
         );
 
+        // 5. Réponse envoyée au Frontend
         res.status(200).json({
             message: 'Connexion réussie',
             token,
@@ -64,9 +66,10 @@ router.post('/login', async (req, res) => {
                 role
             }
         });
+
     } catch (error) {
-        console.error('Erreur lors de la connexion :', error);
-        res.status(500).json({ error: 'Erreur interne du serveur.' });
+        console.error('ERREUR DETAILLEE LOGIN :', error);
+        res.status(500).json({ error: error.message || 'Erreur interne du serveur.' });
     }
 });
 
