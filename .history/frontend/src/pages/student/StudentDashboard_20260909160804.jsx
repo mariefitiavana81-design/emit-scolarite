@@ -1,79 +1,46 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, {useState, useEffect } from 'react';
 import axios from 'axios';
-import logoEmit from '../../assets/emit-logo.png.jpg';
 
-const API_URL = 'http://localhost:5000/api/student';
+const StudentDashboard = () => {
+  const [user] = useState({
+    id_utilisateur: 1,
+    id_etudiant: 1,
+    isDelegue: true
+  });
 
-export default function StudentDashboard() {
-  const navigate = useNavigate();
-
-  // Utilisateur connecté depuis le localStorage (avec fallback)
-  const storedUser = JSON.parse(localStorage.getItem('user') || '{}');
-  const studentId = storedUser.id_etudiant || storedUser.id_utilisateur || 1;
-
-  const [activeTab, setActiveTab] = useState('dashboard');
-  const [filterStatus, setFilterStatus] = useState('TOUS');
-
-  // Données dynamiques de l'API
   const [demandes, setDemandes] = useState([]);
   const [typesDemandes, setTypesDemandes] = useState([]);
-  const [loadingDemandes, setLoadingDemandes] = useState(false);
-  const [submitting, setSubmitting] = useState(false);
+  const [activeTab, setActiveTab] = useState('liste');
 
-  // Formulaire de nouvelle demande
+  // Formulaire demande standard
   const [idType, setIdType] = useState('');
   const [motif, setMotif] = useState('');
   const [nombreExemplaires, setNombreExemplaires] = useState(1);
-  const [anneeAcademique, setAnneeAcademique] = useState('2025-2026');
-  const [semestre, setSemestre] = useState('Semestre 1');
-  const [pieceJustificative, setPieceJustificative] = useState(null);
 
-  // Messages d'alerte et notifications
-  const [notificationMessage, setNotificationMessage] = useState(null);
-  const [errorMessage, setErrorMessage] = useState(null);
-  const [notifications, setNotifications] = useState([
-    { id: 1, message: 'Bienvenue sur votre espace scolarité EMIT.', date: new Date().toISOString().split('T')[0], lue: false }
-  ]);
+  // Formulaire demande délégué
+  const [delegueMotif, setDelegueMotif] = useState('');
+  const [delegueIdType, setDelegueIdType] = useState('');
+  const [delegueExemplaires, setDelegueExemplaires] = useState(1);
+  const [delegueCibleEtudiant, setDelegueCibleEtudiant] = useState('');
 
-  // Informations de profil de l'étudiant
-  const [studentData] = useState({
-    nom: storedUser.nom || 'Rakotomalala',
-    prenom: storedUser.prenom || 'Andry Faniry',
-    email: storedUser.email || 'andry.rakotomalala@emit.mg',
-    matricule: storedUser.matricule || 'ET-2023-0892',
-    telephone: storedUser.telephone || '+261 34 12 345 67',
-    cin: storedUser.cin || '101 234 567 890',
-    dateNaissance: storedUser.date_naissance || '2003-05-14',
-    lieuNaissance: storedUser.lieu_naissance || 'Fianarantsoa',
-    adresse: storedUser.adresse || 'Lot IVB Ambatomena, Fianarantsoa',
-    sexe: storedUser.sexe || 'Masculin',
-    nomPere: storedUser.nom_pere || 'Rakotomalala Jean',
-    nomMere: storedUser.nom_mere || 'Rasoanantenaina Marie',
-    serieBac: storedUser.serie_bac || 'D',
-    anneeBac: storedUser.annee_bac || '2022',
-    niveau: storedUser.niveau || 'L3',
-    libelleNiveau: storedUser.libelle_niveau || 'Licence 3ème Année',
-    parcours: storedUser.parcours || 'GB',
-    libelleParcours: storedUser.libelle_parcours || 'Génie Logiciel et Base de Données',
-    mention: storedUser.mention || 'Informatique',
-    anneeAcademique: '2025-2026'
-  });
+  const [message, setMessage] = useState(null);
+  const [error, setError] = useState(null);
 
-  // Chargement des types de demandes et de la liste des demandes au montage
+  const API_URL = 'http://localhost:5000/api/student';
+
   useEffect(() => {
     fetchTypes();
     fetchDemandes();
-  }, [studentId]);
+  }, [user.id_etudiant]);
 
   const fetchTypes = async () => {
     try {
       const response = await axios.get(`${API_URL}/types`);
-      const data = response.data || [];
-      setTypesDemandes(data);
-      if (data.length > 0) {
-        const defaultId = data[0].id_type || data[0].id;
+      setTypesDemandes(response.data);
+      if (response.data && response.data.length > 0) {
+        const defaultId = response.data[0].id_type || response.data[0].id;
         setIdType(defaultId);
+        setDelegueIdType(defaultId);
       }
     } catch (err) {
       console.error('Erreur lors du chargement des types de demandes :', err);
@@ -81,58 +48,356 @@ export default function StudentDashboard() {
   };
 
   const fetchDemandes = async () => {
-    setLoadingDemandes(true);
     try {
-      const response = await axios.get(`${API_URL}/demandes/${studentId}`);
-      setDemandes(response.data || []);
+      const response = await axios.get(`${API_URL}/demandes/${user.id_etudiant}`);
+      setDemandes(response.data);
     } catch (err) {
       console.error('Erreur lors du chargement des demandes :', err);
-    } finally {
-      setLoadingDemandes(false);
     }
   };
 
-  // Helper pour extraire le libellé du type de demande
+  const handleCreateDemande = async (e) => {
+    e.preventDefault();
+    setMessage(null);
+    setError(null);
+
+    try {
+      await axios.post(`${API_URL}/demandes`, {
+        id_etudiant: user.id_etudiant,
+        id_type: idType,
+        motif,
+        nombre_exemplaires: Number(nombreExemplaires)
+      });
+
+      setMessage('Demande soumise avec succès !');
+      setMotif('');
+      setNombreExemplaires(1);
+      fetchDemandes();
+      setActiveTab('liste');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erreur lors de la soumission de la demande.');
+    }
+  };
+
+  const handleCreateDemandeDelegue = async (e) => {
+    e.preventDefault();
+    setMessage(null);
+    setError(null);
+
+    try {
+      await axios.post(`${API_URL}/demandes/delegue`, {
+        id_utilisateur: user.id_utilisateur,
+        id_etudiant: delegueCibleEtudiant || user.id_etudiant,
+        id_type: delegueIdType,
+        motif: delegueMotif,
+        nombre_exemplaires: Number(delegueExemplaires)
+      });
+
+      setMessage('Demande libre de délégué soumise avec succès !');
+      setDelegueMotif('');
+      setDelegueExemplaires(1);
+      setDelegueCibleEtudiant('');
+      fetchDemandes();
+      setActiveTab('liste');
+    } catch (err) {
+      setError(err.response?.data?.error || 'Erreur lors de la soumission de la demande délégué.');
+    }
+  };
+
+  // Helper pour extraire automatiquement le texte du document
   const getOptionText = (type) => {
-    if (!type) return '';
+    const keys = Object.keys(type);
+    // Recherche de la colonne de texte dans la ligne Neon DB
     return (
-      type.libelle ||
       type.libelle_type ||
       type.nom_type ||
       type.libelle_demande ||
-      `Document N°${type.id_type || type.id}`
+      type.libelle ||
+      (keys.length > 1 ? type[keys[1]] : `Document N°${type.id_type}`)
     );
   };
 
-  // Helper pour formater le statut et les couleurs de badge
-  const getStatusInfo = (demande) => {
-    const rawLabel = demande.statut_libelle || demande.statut || '';
-    const idStatut = Number(demande.id_statut);
-    const lower = rawLabel.toLowerCase();
+  return (
+    <div style={{ padding: '20px', fontFamily: 'Arial, sans-serif', maxWidth: '1000px', margin: '0 auto' }}>
+      <h2>Tableau de Bord Étudiant - EMIT</h2>
 
-    if (lower.includes('pret') || lower.includes('valid') || idStatut === 3) {
-      return { code: 'prete', label: rawLabel || 'Validée / Prête', bg: '#d1fae5', color: '#065f46' };
-    }
-    if (lower.includes('cours') || idStatut === 2) {
-      return { code: 'en_cours', label: rawLabel || 'En cours de traitement', bg: '#fef3c7', color: '#b45309' };
-    }
-    if (lower.includes('clot') || lower.includes('archiv') || idStatut === 4) {
-      return { code: 'cloturee', label: rawLabel || 'Clôturée', bg: '#f1f5f9', color: '#475569' };
-    }
-    if (lower.includes('rejet') || lower.includes('refus') || idStatut === 5) {
-      return { code: 'rejetee', label: rawLabel || 'Rejetée', bg: '#fee2e2', color: '#991b1b' };
-    }
-    return { code: 'soumise', label: rawLabel || 'Soumise', bg: '#e0f2fe', color: '#0369a1' };
-  };
+      {/* Onglets */}
+      <div style={{ marginBottom: '20px', display: 'flex', gap: '10px' }}>
+        <button
+          onClick={() => setActiveTab('liste')}
+          style={{
+            padding: '10px 15px',
+            background: activeTab === 'liste' ? '#007bff' : '#f8f9fa',
+            color: activeTab === 'liste' ? '#fff' : '#000',
+            border: '1px solid #ccc',
+            cursor: 'pointer'
+          }}
+        >
+          Mes Demandes
+        </button>
+        <button
+          onClick={() => setActiveTab('nouveau')}
+          style={{
+            padding: '10px 15px',
+            background: activeTab === 'nouveau' ? '#007bff' : '#f8f9fa',
+            color: activeTab === 'nouveau' ? '#fff' : '#000',
+            border: '1px solid #ccc',
+            cursor: 'pointer'
+          }}
+        >
+          Nouvelle Demande
+        </button>
+        {user.isDelegue && (
+          <button
+            onClick={() => setActiveTab('delegue')}
+            style={{
+              padding: '10px 15px',
+              background: activeTab === 'delegue' ? '#28a745' : '#f8f9fa',
+              color: activeTab === 'delegue' ? '#fff' : '#000',
+              border: '1px solid #ccc',
+              cursor: 'pointer'
+            }}
+          >
+            Espace Délégué (Demande Libre)
+          </button>
+        )}
+      </div>
 
-  const formatDate = (dateStr) => {
-    if (!dateStr) return new Date().toLocaleDateString('fr-FR');
-    try {
-      return new Date(dateStr).toLocaleDateString('fr-FR');
-    } catch {
-      return dateStr;
+      {/* Messages d'état */}
+      {message && <div style={{ padding: '10px', background: '#d4edda', color: '#155724', marginBottom: '15px' }}>{message}</div>}
+      {error && <div style={{ padding: '10px', background: '#f8d7da', color: '#721c24', marginBottom: '15px' }}>{error}</div>}
+
+      {/* HISTORIQUE */}
+      {activeTab === 'liste' && (
+        <div>
+          <h3>Historique de mes demandes</h3>
+          {demandes.length === 0 ? (
+            <p>Aucune demande enregistrée pour le moment.</p>
+          ) : (
+            <table style={{ width: '100%', borderCollapse: 'collapse', marginTop: '10px' }}>
+              <thead>
+                <tr style={{ background: '#f2f2f2', textAlign: 'left' }}>
+                  <th style={{ border: '1px solid #ddd', padding: '8px' }}>ID</th>
+                  <th style={{ border: '1px solid #ddd', padding: '8px' }}>Date</th>
+                  <th style={{ border: '1px solid #ddd', padding: '8px' }}>Type</th>
+                  <th style={{ border: '1px solid #ddd', padding: '8px' }}>Motif</th>
+                  <th style={{ border: '1px solid #ddd', padding: '8px' }}>Exemplaires</th>
+                </tr>
+              </thead>
+              <tbody>
+                {demandes.map((d) => (
+                  <tr key={d.id_demande}>
+                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>{d.id_demande}</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>{new Date(d.date_soumission).toLocaleDateString()}</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>{d.type_libelle || 'Document'}</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>{d.motif}</td>
+                    <td style={{ border: '1px solid #ddd', padding: '8px' }}>{d.nombre_exemplaires}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+      )}
+
+      {/* NOUVELLE DEMANDE */}
+      {activeTab === 'nouveau' && (
+        <div style={{ background: '#f9f9f9', padding: '20px', border: '1px solid #ddd' }}>
+          <h3>Soumettre une nouvelle demande</h3>
+          <form onSubmit={handleCreateDemande} style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '500px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Type de demande :</label>
+              <select
+                value={idType}
+                onChange={(e) => setIdType(e.target.value)}
+                style={{ width: '100%', padding: '8px' }}
+                required
+              >
+                {typesDemandes.map((type) => (
+                  <option key={type.id_type || type.id} value={type.id_type || type.id}>
+                    {getOptionText(type)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Motif :</label>
+              <textarea
+                value={motif}
+                onChange={(e) => setMotif(e.target.value)}
+                rows="4"
+                style={{ width: '100%', padding: '8px' }}
+                placeholder="Précisez votre motif ici..."
+                required
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Nombre d'exemplaires :</label>
+              <input
+                type="number"
+                min="1"
+                value={nombreExemplaires}
+                onChange={(e) => setNombreExemplaires(e.target.value)}
+                style={{ width: '100%', padding: '8px' }}
+                required
+              />
+            </div>
+
+            <button type="submit" style={{ padding: '10px', background: '#007bff', color: '#fff', border: 'none', cursor: 'pointer' }}>
+              Envoyer la demande
+            </button>
+          </form>
+        </div>
+      )}
+
+      {/* ESPACE DÉLÉGUÉ */}
+      {activeTab === 'delegue' && user.isDelegue && (
+        <div style={{ background: '#e9f7ef', padding: '20px', border: '1px solid #c3e6cb' }}>
+          <h3 style={{ color: '#155724' }}>Espace Délégué - Soumission d'une Demande Libre</h3>
+          <form onSubmit={handleCreateDemandeDelegue} style={{ display: 'flex', flexDirection: 'column', gap: '15px', maxWidth: '500px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px' }}>ID Étudiant concerné :</label>
+              <input
+                type="number"
+                value={delegueCibleEtudiant}
+                onChange={(e) => setDelegueCibleEtudiant(e.target.value)}
+                placeholder={`Ex: ${user.id_etudiant}`}
+                style={{ width: '100%', padding: '8px' }}
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Type de demande :</label>
+              <select
+                value={delegueIdType}
+                onChange={(e) => setDelegueIdType(e.target.value)}
+                style={{ width: '100%', padding: '8px' }}
+                required
+              >
+                {typesDemandes.map((type) => (
+                  <option key={type.id_type || type.id} value={type.id_type || type.id}>
+                    {getOptionText(type)}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Motif (Demande libre) :</label>
+              <textarea
+                value={delegueMotif}
+                onChange={(e) => setDelegueMotif(e.target.value)}
+                rows="4"
+                style={{ width: '100%', padding: '8px' }}
+                placeholder="Motif validé en tant que délégué..."
+                required
+              />
+            </div>
+
+            <div>
+              <label style={{ display: 'block', marginBottom: '5px' }}>Nombre d'exemplaires :</label>
+              <input
+                type="number"
+                min="1"
+                value={delegueExemplaires}
+                onChange={(e) => setDelegueExemplaires(e.target.value)}
+                style={{ width: '100%', padding: '8px' }}
+                required
+              />
+            </div>
+
+            <button type="submit" style={{ padding: '10px', background: '#28a745', color: '#fff', border: 'none', cursor: 'pointer' }}>
+              Soumettre en tant que Délégué
+            </button>
+          </form>
+        </div>
+      )}
+    </div>
+  );
+};
+
+import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
+import logoEmit from '../../assets/emit-logo.png.jpg';
+
+export default function StudentDashboard() {
+  const navigate = useNavigate();
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [filterStatus, setFilterStatus] = useState('TOUS');
+  const [selectedTypeDemande, setSelectedTypeDemande] = useState('certificat');
+  const [motif, setMotif] = useState('');
+  const [nombreExemplaires, setNombreExemplaires] = useState(1);
+  const [anneeAcademique, setAnneeAcademique] = useState('2025-2026');
+  const [semestre, setSemestre] = useState('Semestre 1');
+  const [pieceJustificative, setPieceJustificative] = useState(null);
+  const [notificationMessage, setNotificationMessage] = useState(null);
+
+  const [studentData, setStudentData] = useState({
+    nom: 'Rakotomalala',
+    prenom: 'Andry Faniry',
+    email: 'andry.rakotomalala@emit.mg',
+    matricule: 'ET-2023-0892',
+    telephone: '+261 34 12 345 67',
+    cin: '101 234 567 890',
+    dateNaissance: '2003-05-14',
+    lieuNaissance: 'Fianarantsoa',
+    adresse: 'Lot IVB Ambatomena, Fianarantsoa',
+    sexe: 'Masculin',
+    nomPere: 'Rakotomalala Jean',
+    nomMere: 'Rasoanantenaina Marie',
+    serieBac: 'D',
+    anneeBac: '2022',
+    niveau: 'L3',
+    libelleNiveau: 'Licence 3ème Année',
+    parcours: 'GB',
+    libelleParcours: 'Génie Logiciel et Base de Données',
+    mention: 'Informatique',
+    anneeAcademique: '2025-2026'
+  });
+
+  const [demandes, setDemandes] = useState([
+    {
+      id: 1,
+      type: 'Certificat de scolarité',
+      dateSoumission: '2026-09-04',
+      statut: 'En cours de traitement',
+      codeStatut: 'en_cours',
+      annee: '2025-2026',
+      motif: 'Dossier de bourse',
+      exemplaires: 1,
+      commentaires: 'Pris en charge par l’agent de scolarité.'
+    },
+    {
+      id: 2,
+      type: 'Relevé de notes',
+      dateSoumission: '2026-08-20',
+      statut: 'Validée / Prête',
+      codeStatut: 'prete',
+      annee: '2024-2025',
+      motif: 'Inscription concours',
+      exemplaires: 2,
+      commentaires: 'Document généré et signé numériquement.',
+      lienFichier: '#'
+    },
+    {
+      id: 3,
+      type: 'Absence avec pièce justificative',
+      dateSoumission: '2026-08-10',
+      statut: 'Clôturée',
+      codeStatut: 'cloturee',
+      annee: '2025-2026',
+      motif: 'Certificat médical du 08/08 au 09/08',
+      exemplaires: 1,
+      commentaires: 'Justifié et accepté par la scolarité.'
     }
-  };
+  ]);
+
+  const [notifications, setNotifications] = useState([
+    { id: 1, message: 'Votre demande de certificat de scolarité est passée au statut : En cours de traitement.', date: '2026-09-04', lue: false },
+    { id: 2, message: 'Votre relevé de notes est prêt à être téléchargé.', date: '2026-08-21', lue: true }
+  ]);
 
   const handleLogout = () => {
     localStorage.removeItem('token');
@@ -141,69 +406,42 @@ export default function StudentDashboard() {
     navigate('/login');
   };
 
-  // Soumission de nouvelle demande vers l'API
-  const handleNouvelleDemandeSubmit = async (e) => {
+  const handleNouvelleDemandeSubmit = (e) => {
     e.preventDefault();
-    setNotificationMessage(null);
-    setErrorMessage(null);
-    setSubmitting(true);
+    const nouvelle = {
+      id: demandes.length + 1,
+      type: selectedTypeDemande === 'certificat' ? 'Certificat de scolarité' :
+            selectedTypeDemande === 'releve' ? `Relevé de notes (${semestre})` :
+            selectedTypeDemande === 'attestation' ? 'Attestation de réussite' :
+            selectedTypeDemande === 'absence' ? 'Absence avec pièce justificative' : 'Demande de diplôme',
+      dateSoumission: new Date().toISOString().split('T')[0],
+      statut: 'Soumise',
+      codeStatut: 'soumise',
+      annee: anneeAcademique,
+      motif: motif || 'Aucun motif particulier',
+      exemplaires: nombreExemplaires,
+      commentaires: 'Demande enregistrée avec succès dans le système.'
+    };
 
-    try {
-      await axios.post(`${API_URL}/demandes`, {
-        id_etudiant: studentId,
-        id_type: idType,
-        motif: motif || 'Aucun motif particulier',
-        nombre_exemplaires: Number(nombreExemplaires)
-      });
-
-      const selectedTypeObj = typesDemandes.find(t => String(t.id_type || t.id) === String(idType));
-      const typeName = selectedTypeObj ? getOptionText(selectedTypeObj) : 'Document';
-
-      // Recharger la liste depuis le serveur
-      await fetchDemandes();
-
-      // Ajouter notification locale
-      setNotifications(prev => [
-        {
-          id: Date.now(),
-          message: `Votre demande de "${typeName}" a été soumise avec succès à la scolarité.`,
-          date: new Date().toLocaleDateString('fr-FR'),
-          lue: false
-        },
-        ...prev
-      ]);
-
-      setNotificationMessage('Demande soumise avec succès ! Retrouvez-la dans "Mes Demandes".');
-      setMotif('');
-      setNombreExemplaires(1);
-      setTimeout(() => setNotificationMessage(null), 6000);
-      setActiveTab('demandes');
-    } catch (err) {
-      console.error('Erreur soumission demande :', err);
-      setErrorMessage(err.response?.data?.error || 'Erreur lors de la soumission de la demande.');
-    } finally {
-      setSubmitting(false);
-    }
+    setDemandes([nouvelle, ...demandes]);
+    setNotifications([
+      { id: notifications.length + 1, message: `Votre demande de "${nouvelle.type}" a bien été soumise.`, date: nouvelle.dateSoumission, lue: false },
+      ...notifications
+    ]);
+    setNotificationMessage('Demande soumise avec succès ! Retrouvez-la dans "Mes Demandes".');
+    setMotif('');
+    setTimeout(() => setNotificationMessage(null), 5000);
+    setActiveTab('demandes');
   };
 
-  // Filtrage des demandes
   const filteredDemandes = demandes.filter(d => {
     if (filterStatus === 'TOUS') return true;
-    const info = getStatusInfo(d);
-    return info.code === filterStatus;
+    return d.codeStatut === filterStatus;
   });
-
-  // Calcul des statistiques
-  const totalCount = demandes.length;
-  const enCoursCount = demandes.filter(d => {
-    const code = getStatusInfo(d).code;
-    return code === 'en_cours' || code === 'soumise';
-  }).length;
-  const preteCount = demandes.filter(d => getStatusInfo(d).code === 'prete').length;
 
   return (
     <div style={{ display: 'flex', height: '100vh', background: '#f8fafc', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif', overflow: 'hidden' }}>
-      {/* Sidebar Navigation */}
+      {/* Sidebar Navigation - Largeur fixée à 260px */}
       <aside style={{ width: '260px', background: '#ffffff', borderRight: '1px solid #e2e8f0', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', userSelect: 'none', flexShrink: 0 }}>
         <div>
           {/* Logo Section */}
@@ -297,6 +535,8 @@ export default function StudentDashboard() {
       <div style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
         {/* Header */}
         <header style={{ height: '112px', background: '#ffffff', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 32px', boxSizing: 'border-box' }}>
+          
+          {/* Bloc Droit du Header : Cadre avec Nom, Matricule et Filière, suivi du bouton Déconnexion */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '20px' }}>
             <div style={{ width: '260px', height: '72px', display: 'flex', alignItems: 'center', padding: '0 12px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '10px', boxSizing: 'border-box' }}>
               <div style={{ lineHeight: '1.3', width: '100%' }}>
@@ -325,13 +565,8 @@ export default function StudentDashboard() {
             {notificationMessage}
           </div>
         )}
-        {errorMessage && (
-          <div style={{ margin: '20px 32px 0', padding: '12px 16px', background: '#fef2f2', border: '1px solid #fecaca', color: '#991b1b', borderRadius: '10px', fontSize: '13px', fontWeight: '600' }}>
-            {errorMessage}
-          </div>
-        )}
 
-        {/* Dynamic Body Content */}
+        {/* Dynamic Body Content per Tab */}
         <main style={{ padding: '32px', display: 'flex', flexDirection: 'column', gap: '24px' }}>
           
           {/* TAB 1: DASHBOARD */}
@@ -354,8 +589,8 @@ export default function StudentDashboard() {
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
                 <div style={{ background: '#ffffff', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
-                    <p style={{ fontSize: '12px', fontWeight: '500', color: '#64748b', margin: '0 0 6px 0' }}>En cours / Soumises</p>
-                    <p style={{ fontSize: '24px', fontWeight: '900', color: '#d97706', margin: 0 }}>{enCoursCount}</p>
+                    <p style={{ fontSize: '12px', fontWeight: '500', color: '#64748b', margin: '0 0 6px 0' }}>En cours</p>
+                    <p style={{ fontSize: '24px', fontWeight: '900', color: '#d97706', margin: 0 }}>{demandes.filter(d => d.codeStatut === 'en_cours' || d.codeStatut === 'soumise').length}</p>
                   </div>
                   <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#fef3c7', color: '#d97706', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>⏳</div>
                 </div>
@@ -363,7 +598,7 @@ export default function StudentDashboard() {
                 <div style={{ background: '#ffffff', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
                     <p style={{ fontSize: '12px', fontWeight: '500', color: '#64748b', margin: '0 0 6px 0' }}>Prêtes / Validées</p>
-                    <p style={{ fontSize: '24px', fontWeight: '900', color: '#059669', margin: 0 }}>{preteCount}</p>
+                    <p style={{ fontSize: '24px', fontWeight: '900', color: '#059669', margin: 0 }}>{demandes.filter(d => d.codeStatut === 'prete').length}</p>
                   </div>
                   <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#ecfdf5', color: '#059669', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>✅</div>
                 </div>
@@ -371,7 +606,7 @@ export default function StudentDashboard() {
                 <div style={{ background: '#ffffff', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div>
                     <p style={{ fontSize: '12px', fontWeight: '500', color: '#64748b', margin: '0 0 6px 0' }}>Total demandes</p>
-                    <p style={{ fontSize: '24px', fontWeight: '900', color: '#1e3a8a', margin: 0 }}>{totalCount}</p>
+                    <p style={{ fontSize: '24px', fontWeight: '900', color: '#1e3a8a', margin: 0 }}>{demandes.length}</p>
                   </div>
                   <div style={{ width: '40px', height: '40px', borderRadius: '10px', background: '#eff6ff', color: '#1e3a8a', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '18px' }}>📁</div>
                 </div>
@@ -385,7 +620,7 @@ export default function StudentDashboard() {
                 </div>
               </div>
 
-              {/* Grid: Recent requests and info */}
+              {/* Grid: Recent requests and quick actions */}
               <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
                 <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -394,31 +629,22 @@ export default function StudentDashboard() {
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                    {loadingDemandes ? (
-                      <p style={{ color: '#64748b', fontSize: '13px', padding: '12px 0' }}>Chargement de vos demandes...</p>
-                    ) : demandes.length === 0 ? (
-                      <p style={{ color: '#94a3b8', fontSize: '13px', padding: '12px 0' }}>Aucune demande enregistrée pour le moment.</p>
-                    ) : (
-                      demandes.slice(0, 3).map((d) => {
-                        const info = getStatusInfo(d);
-                        return (
-                          <div key={d.id_demande || d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #f1f5f9' }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                              <span style={{ 
-                                display: 'inline-block', padding: '2px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '700', width: 'fit-content',
-                                background: info.bg,
-                                color: info.color
-                              }}>
-                                {info.label}
-                              </span>
-                              <p style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', margin: 0 }}>{d.type_libelle || d.type || 'Demande de document'}</p>
-                              <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>Motif : {d.motif || 'Non précisé'}</p>
-                            </div>
-                            <span style={{ fontSize: '11px', color: '#94a3b8' }}>{formatDate(d.date_soumission || d.dateSoumission)}</span>
-                          </div>
-                        );
-                      })
-                    )}
+                    {demandes.slice(0, 3).map((d) => (
+                      <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '14px', borderRadius: '10px', background: '#f8fafc', border: '1px solid #f1f5f9' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                          <span style={{ 
+                            display: 'inline-block', padding: '2px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '700', width: 'fit-content',
+                            background: d.codeStatut === 'prete' ? '#d1fae5' : d.codeStatut === 'en_cours' ? '#fef3c7' : '#e0f2fe',
+                            color: d.codeStatut === 'prete' ? '#065f46' : d.codeStatut === 'en_cours' ? '#b45309' : '#0369a1'
+                          }}>
+                            {d.statut}
+                          </span>
+                          <p style={{ fontSize: '13px', fontWeight: '700', color: '#1e293b', margin: 0 }}>{d.type}</p>
+                          <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>Motif : {d.motif}</p>
+                        </div>
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>{d.dateSoumission}</span>
+                      </div>
+                    ))}
                   </div>
                 </div>
 
@@ -426,12 +652,12 @@ export default function StudentDashboard() {
                   <h2 style={{ fontSize: '14px', fontWeight: '800', color: '#0f172a', margin: 0 }}>Informations Scolarité</h2>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                     <div style={{ padding: '12px', borderRadius: '10px', background: '#eff6ff', border: '1px solid #dbeafe' }}>
-                      <p style={{ fontSize: '11px', fontWeight: '700', color: '#1e3a8a', margin: '0 0 4px 0' }}>Retrait des documents</p>
+                      <p style={{ fontSize: '11px', fontWeight: '700', color: '#1e3a8a', margin: '0 0 4px 0' }}>Retrait des cartes</p>
                       <p style={{ fontSize: '11px', color: '#334155', margin: 0 }}>Le bureau de la scolarité est ouvert du lundi au vendredi de 8h00 à 15h00.</p>
                     </div>
                     <div style={{ padding: '12px', borderRadius: '10px', background: '#fef3c7', border: '1px solid #fde68a' }}>
                       <p style={{ fontSize: '11px', fontWeight: '700', color: '#b45309', margin: '0 0 4px 0' }}>Délai de traitement</p>
-                      <p style={{ fontSize: '11px', color: '#334155', margin: 0 }}>Comptez 48h ouvrées pour le traitement et la validation d'une demande de document officiel.</p>
+                      <p style={{ fontSize: '11px', color: '#334155', margin: 0 }}>Comptez 48h ouvrées pour la validation d'un certificat ou relevé de notes.</p>
                     </div>
                   </div>
                 </div>
@@ -448,74 +674,58 @@ export default function StudentDashboard() {
                   <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Suivi détaillé et historique de l'ensemble de vos requêtes</p>
                 </div>
                 <div style={{ display: 'flex', gap: '8px' }}>
-                  {[
-                    { key: 'TOUS', label: 'Tous' },
-                    { key: 'soumise', label: 'Soumises' },
-                    { key: 'en_cours', label: 'En cours' },
-                    { key: 'prete', label: 'Prêtes' },
-                    { key: 'cloturee', label: 'Clôturées' }
-                  ].map(({ key, label }) => (
+                  {['TOUS', 'soumise', 'en_cours', 'prete', 'cloturee'].map((st) => (
                     <button
-                      key={key}
-                      onClick={() => setFilterStatus(key)}
+                      key={st}
+                      onClick={() => setFilterStatus(st)}
                       style={{
                         padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '700', border: '1px solid #e2e8f0', cursor: 'pointer',
-                        background: filterStatus === key ? '#1e3a8a' : '#ffffff',
-                        color: filterStatus === key ? '#ffffff' : '#475569'
+                        background: filterStatus === st ? '#1e3a8a' : '#ffffff',
+                        color: filterStatus === st ? '#ffffff' : '#475569'
                       }}
                     >
-                      {label}
+                      {st === 'TOUS' ? 'Tous' : st.replace('_', ' ').toUpperCase()}
                     </button>
                   ))}
                 </div>
               </div>
 
               <div style={{ background: '#ffffff', borderRadius: '16px', border: '1px solid #e2e8f0', padding: '24px', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                {loadingDemandes ? (
-                  <p style={{ textAlign: 'center', color: '#64748b', padding: '40px', fontSize: '13px' }}>Chargement de l'historique...</p>
-                ) : filteredDemandes.length === 0 ? (
+                {filteredDemandes.length === 0 ? (
                   <p style={{ textAlign: 'center', color: '#94a3b8', padding: '40px', fontSize: '13px' }}>Aucune demande trouvée pour ce filtre.</p>
                 ) : (
-                  filteredDemandes.map((d) => {
-                    const info = getStatusInfo(d);
-                    const idDemande = d.id_demande || d.id;
-                    return (
-                      <div key={idDemande} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
-                            <span style={{ 
-                              padding: '2px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '700',
-                              background: info.bg,
-                              color: info.color
-                            }}>
-                              {info.label}
-                            </span>
-                            <span style={{ fontSize: '11px', color: '#64748b' }}>N° #{idDemande}</span>
-                            <span style={{ fontSize: '11px', color: '#64748b' }}>Exemplaires : {d.nombre_exemplaires || 1}</span>
-                          </div>
-                          <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#1e293b', margin: 0 }}>
-                            {d.type_libelle || d.type || 'Document officiel'}
-                          </h3>
-                          <p style={{ fontSize: '12px', color: '#475569', margin: 0 }}>Motif : {d.motif || 'Non précisé'}</p>
-                          {d.commentaires && (
-                            <p style={{ fontSize: '11px', color: '#059669', margin: 0, fontStyle: 'italic' }}>Note de la scolarité : {d.commentaires}</p>
-                          )}
+                  filteredDemandes.map((d) => (
+                    <div key={d.id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '16px', borderRadius: '12px', background: '#f8fafc', border: '1px solid #e2e8f0' }}>
+                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                        <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                          <span style={{ 
+                            padding: '2px 8px', borderRadius: '6px', fontSize: '10px', fontWeight: '700',
+                            background: d.codeStatut === 'prete' ? '#d1fae5' : d.codeStatut === 'en_cours' ? '#fef3c7' : '#e0f2fe',
+                            color: d.codeStatut === 'prete' ? '#065f46' : d.codeStatut === 'en_cours' ? '#b45309' : '#0369a1'
+                          }}>
+                            {d.statut}
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#64748b' }}>Année : {d.annee}</span>
+                          <span style={{ fontSize: '11px', color: '#64748b' }}>Exemplaires : {d.exemplaires}</span>
                         </div>
-
-                        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
-                          <span style={{ fontSize: '11px', color: '#94a3b8' }}>Soumis le {formatDate(d.date_soumission || d.dateSoumission)}</span>
-                          {info.code === 'prete' && (
-                            <button 
-                              onClick={() => alert('Téléchargement du document officiel signé en cours...')}
-                              style={{ background: '#059669', color: '#ffffff', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}
-                            >
-                              📥 Télécharger le document
-                            </button>
-                          )}
-                        </div>
+                        <h3 style={{ fontSize: '14px', fontWeight: '800', color: '#1e293b', margin: 0 }}>{d.type}</h3>
+                        <p style={{ fontSize: '12px', color: '#475569', margin: 0 }}>Motif : {d.motif}</p>
+                        <p style={{ fontSize: '11px', color: '#059669', margin: 0, fontStyle: 'italic' }}>Note de la scolarité : {d.commentaires}</p>
                       </div>
-                    );
-                  })
+
+                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '8px' }}>
+                        <span style={{ fontSize: '11px', color: '#94a3b8' }}>Soumis le {d.dateSoumission}</span>
+                        {d.codeStatut === 'prete' && (
+                          <button 
+                            onClick={() => alert('Téléchargement du document officiel signé en cours...')}
+                            style={{ background: '#059669', color: '#ffffff', border: 'none', padding: '6px 12px', borderRadius: '8px', fontSize: '11px', fontWeight: '700', cursor: 'pointer' }}
+                          >
+                            📥 Télécharger le document
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  ))
                 )}
               </div>
             </div>
@@ -529,31 +739,17 @@ export default function StudentDashboard() {
 
               <form onSubmit={handleNouvelleDemandeSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Type de document demandé *</label>
+                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Type de demande *</label>
                   <select 
-                    value={idType}
-                    onChange={(e) => setIdType(e.target.value)}
+                    value={selectedTypeDemande}
+                    onChange={(e) => setSelectedTypeDemande(e.target.value)}
                     style={{ padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }}
-                    required
                   >
-                    {typesDemandes.length > 0 ? (
-                      typesDemandes.map((type) => {
-                        const val = type.id_type || type.id;
-                        return (
-                          <option key={val} value={val}>
-                            {getOptionText(type)}
-                          </option>
-                        );
-                      })
-                    ) : (
-                      <>
-                        <option value="1">Certificat de scolarité</option>
-                        <option value="2">Relevé de notes</option>
-                        <option value="3">Attestation de réussite</option>
-                        <option value="4">Absence avec pièce justificative</option>
-                        <option value="5">Demande de diplôme</option>
-                      </>
-                    )}
+                    <option value="certificat">Certificat de scolarité</option>
+                    <option value="releve">Relevé de notes</option>
+                    <option value="attestation">Attestation de réussite / fin d'études</option>
+                    <option value="absence">Absence avec pièce justificative</option>
+                    <option value="diplome">Demande de diplôme</option>
                   </select>
                 </div>
 
@@ -571,49 +767,63 @@ export default function StudentDashboard() {
                     </select>
                   </div>
 
+                  {selectedTypeDemande === 'releve' && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                      <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Semestre / Niveau *</label>
+                      <select 
+                        value={semestre}
+                        onChange={(e) => setSemestre(e.target.value)}
+                        style={{ padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', background: '#fff' }}
+                      >
+                        <option value="Semestre 1">Semestre 1</option>
+                        <option value="Semestre 2">Semestre 2</option>
+                        <option value="Année complète">Année complète</option>
+                      </select>
+                    </div>
+                  )}
+
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Nombre d'exemplaires</label>
                     <input 
                       type="number" 
                       min="1" 
-                      max="10" 
+                      max="5" 
                       value={nombreExemplaires}
-                      onChange={(e) => setNombreExemplaires(Math.max(1, parseInt(e.target.value) || 1))}
+                      onChange={(e) => setNombreExemplaires(parseInt(e.target.value) || 1)}
                       style={{ padding: '11px 12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px' }}
-                      required
                     />
                   </div>
                 </div>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Motif de la demande / Usage prévu *</label>
+                  <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Motif de la demande / Usage prévu (Optionnel)</label>
                   <textarea 
                     rows="3"
                     value={motif}
                     onChange={(e) => setMotif(e.target.value)}
-                    placeholder="Précisez votre motif (Ex: Dossier de bourse, demande de stage, démarche administrative...)"
+                    placeholder="Ex: Dossier de bourse, demande de stage, visa..."
                     style={{ padding: '12px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '13px', fontFamily: 'inherit' }}
-                    required
                   ></textarea>
                 </div>
 
+                {selectedTypeDemande === 'absence' && (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', padding: '16px', background: '#f8fafc', borderRadius: '10px', border: '1px dashed #cbd5e1' }}>
+                    <label style={{ fontSize: '12px', fontWeight: '700', color: '#334155' }}>Pièce justificative (Certificat médical / Convocation) *</label>
+                    <input 
+                      type="file" 
+                      accept=".pdf,.png,.jpg,.jpeg"
+                      onChange={(e) => setPieceJustificative(e.target.files[0])}
+                      style={{ fontSize: '12px' }}
+                    />
+                    <span style={{ fontSize: '11px', color: '#64748b' }}>Formats acceptés : PDF, JPG, PNG (Max 5Mo)</span>
+                  </div>
+                )}
+
                 <button 
                   type="submit"
-                  disabled={submitting}
-                  style={{ 
-                    background: submitting ? '#94a3b8' : '#1e3a8a', 
-                    color: '#ffffff', 
-                    border: 'none', 
-                    padding: '14px', 
-                    borderRadius: '10px', 
-                    fontSize: '13px', 
-                    fontWeight: '700', 
-                    cursor: submitting ? 'not-allowed' : 'pointer', 
-                    marginTop: '10px', 
-                    boxShadow: '0 4px 12px rgba(30, 58, 138, 0.2)' 
-                  }}
+                  style={{ background: '#1e3a8a', color: '#ffffff', border: 'none', padding: '14px', borderRadius: '10px', fontSize: '13px', fontWeight: '700', cursor: 'pointer', marginTop: '10px', boxShadow: '0 4px 12px rgba(30, 58, 138, 0.2)' }}
                 >
-                  {submitting ? 'Envoi en cours...' : 'Valider et soumettre la demande'}
+                  Valider et soumettre la demande
                 </button>
               </form>
             </div>
@@ -711,3 +921,4 @@ export default function StudentDashboard() {
     </div>
   );
 }
+export default StudentDashboard;

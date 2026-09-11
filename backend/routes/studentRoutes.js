@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db');
+const pool = require('../config/db'); // ou const db = require('../config/db');
 
 // 1. Récupérer tous les types de demandes (EF-01 : 6 types)
 router.get('/types', async (req, res) => {

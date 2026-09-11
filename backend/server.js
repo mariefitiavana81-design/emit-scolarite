@@ -2,14 +2,20 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 
-<<<<<<< HEAD
-// Importation de toutes les routes
+// Connexion à la base de données Neon
+const db = require('./config/db'); // ou './db' selon l'emplacement de ton fichier de connexion
+
+// Importation des routes
 const authRoutes = require('./routes/authRoutes');
-const adminRoutes = require('./routes/adminRoutes');
-=======
-const authRoutes = require('./routes/authRoutes');
->>>>>>> a59c60ff81e29fadbb2f2cc4e813b8988185e970
 const studentRoutes = require('./routes/studentRoutes');
+
+// Chargement sécurisé des routes Admin
+let adminRoutes;
+try {
+  adminRoutes = require('./routes/adminRoutes');
+} catch (error) {
+  console.log('Info : routes/adminRoutes non trouvées ou en cours de développement.');
+}
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -18,18 +24,18 @@ const PORT = process.env.PORT || 5000;
 app.use(cors());
 app.use(express.json());
 
-<<<<<<< HEAD
-// Enregistrement des préfixes API
+// Enregistrement des préfixes d'API
 app.use('/api/auth', authRoutes);
-app.use('/api/admin', adminRoutes);
 app.use('/api/student', studentRoutes);
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Serveur prêt sur le port ${PORT}`));
-// Route PUT pour mettre à jour le statut et le commentaire
+if (adminRoutes) {
+  app.use('/api/admin', adminRoutes);
+}
+
+// Route PUT pour mettre à jour le statut d'une demande
 app.put('/api/demandes/:id/statut', async (req, res) => {
   const { id } = req.params;
-  const { id_statut, details } = req.body; 
+  const { id_statut, details } = req.body;
 
   try {
     const result = await db.query(
@@ -51,31 +57,20 @@ app.put('/api/demandes/:id/statut', async (req, res) => {
     console.error('Erreur SQL:', error);
     res.status(500).json({ error: 'Erreur lors de la mise à jour' });
   }
-=======
-// Routes de l'API
-app.use('/api/auth', authRoutes);
-app.use('/api/student', studentRoutes);
-
-// Importation optionnelle des routes Admin (si créées par votre binôme)
-try {
-    const adminRoutes = require('./routes/adminRoutes');
-    app.use('/api/admin', adminRoutes);
-} catch (error) {
-    console.log('Info : routes admin non encore chargées ou chemin différent.');
-}
+});
 
 // Route de test de base
 app.get('/', (req, res) => {
-    res.send('API EMIT - Gestion Scolarité en cours de fonctionnement');
+  res.send('API EMIT - Gestion Scolarité en cours de fonctionnement');
 });
 
 // Gestion globale des erreurs
 app.use((err, req, res, next) => {
-    console.error('Erreur serveur :', err.stack);
-    res.status(500).json({ error: 'Erreur interne du serveur.' });
+  console.error('Erreur serveur :', err.stack);
+  res.status(500).json({ error: 'Erreur interne du serveur.' });
 });
 
+// Démarrage du serveur
 app.listen(PORT, () => {
-    console.log(`Serveur démarré sur le port ${PORT}`);
->>>>>>> a59c60ff81e29fadbb2f2cc4e813b8988185e970
+  console.log(`🚀 Serveur prêt et démarré sur le port ${PORT}`);
 });

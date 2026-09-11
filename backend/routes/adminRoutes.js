@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../db');
+const pool = require('../config/db'); // ou const db = require('../config/db');
 
 // 1. Obtenir toutes les demandes reçues
 router.get('/demandes', async (req, res) => {
