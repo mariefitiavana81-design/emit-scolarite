@@ -1,489 +1,354 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import logoEmit from '../../assets/emit-logo.png.jpg';
 
 export default function StudentDashboard() {
-    const [activeTab, setActiveTab] = useState('tableau-de-bord');
-    const [showNotifications, setShowNotifications] = useState(false);
+    const [activeTab, setActiveTab] = useState('dashboard');
+    
+    // Liste des demandes de l'étudiant
+    const [demandes, setDemandes] = useState([
+        { id: 1, type: "Certificat de scolarité", motif: "Dossier de bourse", date: "2026-09-04", statut: "En cours de traitement" },
+        { id: 2, type: "Relevé de notes", motif: "Inscription concours", date: "2026-08-20", statut: "Validée / Prête" }
+    ]);
 
-    // États dynamiques reliés à la base de données
-    const [nomComplet, setNomComplet] = useState('Chargement...');
-    const [email, setEmail] = useState('');
-    const [niveau, setNiveau] = useState('');
-    const [parcours, setParcours] = useState('');
-    const [mention, setMention] = useState('');
-    const [ancienMdp, setAncienMdp] = useState('');
-    const [nouveauMdp, setNouveauMdp] = useState('');
-
-    const [typeDemande, setTypeDemande] = useState('Certificat de scolarité');
+    // Champs pour le formulaire "Nouvelle demande"
+    const [typeDocument, setTypeDocument] = useState('Certificat de scolarité');
     const [motif, setMotif] = useState('');
+    const [loading, setLoading] = useState(false);
+    const [successMsg, setSuccessMsg] = useState('');
 
-    const [notificationsList, setNotificationsList] = useState([]);
-    const [mesDemandes, setMesDemandes] = useState([]);
+    // Champs pour la modification du Profil
+    const [nom, setNom] = useState('RAHARINILANTO Anna Alexis');
+    const [email, setEmail] = useState('anna.alexis@it-university.mg');
+    const [currentPassword, setCurrentPassword] = useState('');
+    const [newPassword, setNewPassword] = useState('');
+    const [profilMsg, setProfilMsg] = useState('');
 
     const navigate = useNavigate();
 
-    // Fonction pour récupérer les vraies informations de l'étudiant connecté depuis la base de données
-    const fetchProfileData = async () => {
-        try {
-            const token = localStorage.getItem('token');
-            if (!token) {
-                navigate('/login');
-                return;
-            }
-
-            // Appel de l'API backend connectée à la base de données
-            const response = await axios.get('http://localhost:5000/api/etudiant/profil', {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            
-            if (response.data) {
-                const data = response.data;
-                // Mappage des champs exacts de la table PostgreSQL/MySQL (nom, prenom, niveau, parcours, mention, etc.)
-                if (data.nomComplet) {
-                    setNomComplet(data.nomComplet);
-                } else if (data.nom) {
-                    const fullName = `${data.nom} ${data.prenom || ''}`.trim();
-                    setNomComplet(fullName);
-                }
-                
-                if (data.email) setEmail(data.email);
-                if (data.niveau) setNiveau(data.niveau);
-                if (data.parcours) setParcours(data.parcours);
-                if (data.mention) setMention(data.mention);
-                if (data.demandes) setMesDemandes(data.demandes);
-                if (data.notifications) setNotificationsList(data.notifications);
-            }
-        } catch (error) {
-            console.error("Erreur lors du chargement des données de la base de données :", error);
-            if (error.response && error.response.status === 401) {
-                localStorage.removeItem('token');
-                navigate('/login');
-            }
-        }
-    };
-
-    useEffect(() => {
-        fetchProfileData();
-    }, []);
-
-    const handleDeconnexion = () => {
-        localStorage.removeItem('token');
+    const handleLogout = () => {
+        localStorage.clear();
         navigate('/login');
     };
 
-    const handleUpdateProfile = async (e) => {
-        e.preventDefault();
-        try {
-            const token = localStorage.getItem('token');
-            await axios.put('http://localhost:5000/api/etudiant/profil', {
-                nomComplet,
-                email,
-                ancienMdp,
-                nouveauMdp
-            }, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
-            alert("Informations mises à jour dans la base de données avec succès !");
-            setAncienMdp('');
-            setNouveauMdp('');
-            fetchProfileData();
-        } catch (error) {
-            alert("Erreur lors de la mise à jour du profil.");
-            console.error(error);
-        }
+    const handleActualiser = () => {
+        window.location.reload();
     };
 
-    const handleSoumettreDemande = async (e) => {
+    const handleSoumettreDemande = (e) => {
         e.preventDefault();
-        if (!motif.trim()) {
-            alert("Veuillez renseigner un motif pour votre demande.");
-            return;
-        }
-        try {
-            const token = localStorage.getItem('token');
-            const response = await axios.post('http://localhost:5000/api/etudiant/demandes', {
-                type: typeDemande,
-                motif: motif
-            }, {
-                headers: { 'Authorization': `Bearer ${token}` }
-            });
+        setLoading(true);
 
-            if (response.data) {
-                alert("Demande enregistrée dans la base de données avec succès !");
-                setMotif('');
-                fetchProfileData(); // Actualise la liste depuis la BD
-                setActiveTab('mes-demandes');
-            }
-        } catch (error) {
-            console.error("Erreur lors de l'insertion de la demande :", error);
-            alert("Erreur lors de la soumission de la demande.");
-        }
+        setTimeout(() => {
+            const nouvelleDemande = {
+                id: demandes.length + 1,
+                type: typeDocument,
+                motif: motif || 'Demande officielle',
+                date: new Date().toISOString().split('T')[0],
+                statut: 'En cours de traitement'
+            };
+            setDemandes([nouvelleDemande, ...demandes]);
+            setLoading(false);
+            setSuccessMsg('Votre demande a été soumise avec succès à la scolarité.');
+            setMotif('');
+            setActiveTab('dashboard');
+            setTimeout(() => setSuccessMsg(''), 5000);
+        }, 800);
     };
 
-    // Calculs statistiques basés sur les données réelles de la BD
-    const nbEnCours = mesDemandes.filter(d => d.statut && d.statut.toLowerCase().includes('cours')).length;
-    const nbValidees = mesDemandes.filter(d => d.statut && (d.statut.toLowerCase().includes('validée') || d.statut.toLowerCase().includes('prête'))).length;
-    const totalDemandes = mesDemandes.length;
-
-    // Initiales dynamiques générées à partir du nom récupéré de la base de données
-    const initials = (nomComplet && nomComplet !== 'Chargement...') 
-        ? nomComplet.split(' ').map(n => n[0]).join('').substring(0, 2).toUpperCase() 
-        : 'ET';
+    const handleUpdateProfil = (e) => {
+        e.preventDefault();
+        setProfilMsg('Modifications enregistrées avec succès !');
+        setTimeout(() => setProfilMsg(''), 4000);
+    };
 
     return (
-        <div style={{ display: 'flex', height: '100vh', width: '100vw', backgroundColor: '#f1f5f9', fontFamily: 'Inter, sans-serif', overflow: 'hidden' }}>
+        <div style={{ display: 'flex', height: '100vh', background: '#f8fafc', fontFamily: '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif' }}>
             
-            {/* Sidebar avec fond bleu style binôme (#1e293b) */}
-            <div style={{ width: '260px', backgroundColor: '#1e293b', borderRight: '1px solid #334155', display: 'flex', flexDirection: 'column', boxSizing: 'border-box' }}>
-                
-                {/* Logo Section */}
-                <div style={{ padding: '20px 24px', borderBottom: '1px solid #334155', display: 'flex', alignItems: 'center', justifyContent: 'center', height: '112px', boxSizing: 'border-box', backgroundColor: '#ffffff' }}>
-                    <img 
-                        src={logoEmit} 
-                        alt="EMIT Logo" 
-                        style={{ height: '72px', width: 'auto', objectFit: 'contain' }}
-                    />
+            {/* Sidebar Left (Textes de catégories supprimés pour un rendu épuré) */}
+            <aside style={{ width: '260px', background: '#0f172a', borderRight: '1px solid #1e293b', display: 'flex', flexDirection: 'column', flexShrink: '0' }}>
+                <div style={{ padding: '20px 24px', background: '#ffffff', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <img src={logoEmit} alt="EMIT Logo" style={{ height: '45px', width: 'auto', objectFit: 'contain' }} />
                 </div>
 
-                {/* Navigation Links */}
-                <div style={{ padding: '20px 16px', display: 'flex', flexDirection: 'column', gap: '8px', flex: 1 }}>
-                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#94a3b8', padding: '0 12px 6px', letterSpacing: '0.5px' }}>PRINCIPAL</div>
+                <div style={{ padding: '24px 16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
                     <button 
-                        onClick={() => setActiveTab('tableau-de-bord')}
+                        onClick={() => setActiveTab('dashboard')}
                         style={{
-                            padding: '12px 16px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            backgroundColor: activeTab === 'tableau-de-bord' ? '#2563eb' : 'transparent',
-                            color: '#ffffff',
-                            fontWeight: activeTab === 'tableau-de-bord' ? '600' : '400',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                            fontSize: '13px'
+                            display: 'flex', alignItems: 'center', width: '100%', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none',
+                            background: activeTab === 'dashboard' ? '#2563eb' : 'transparent',
+                            color: '#ffffff', fontWeight: '600', fontSize: '14px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s'
                         }}
                     >
                         📊 Tableau de bord
                     </button>
                     
-                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#94a3b8', padding: '16px 12px 6px', letterSpacing: '0.5px' }}>SCOLARITÉ</div>
                     <button 
                         onClick={() => setActiveTab('mes-demandes')}
                         style={{
-                            padding: '12px 16px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            backgroundColor: activeTab === 'mes-demandes' ? '#2563eb' : 'transparent',
-                            color: '#ffffff',
-                            fontWeight: activeTab === 'mes-demandes' ? '600' : '400',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '12px',
-                            fontSize: '13px'
+                            display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '12px 16px', borderRadius: '10px', border: 'none',
+                            background: activeTab === 'mes-demandes' ? '#2563eb' : 'transparent',
+                            color: '#ffffff', fontWeight: '600', fontSize: '14px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s'
                         }}
                     >
-                        <span>📂 Mes Demandes</span>
-                        <span style={{ background: '#334155', color: '#ffffff', padding: '2px 8px', borderRadius: '12px', fontSize: '11px', fontWeight: '700' }}>
-                            {totalDemandes}
-                        </span>
+                        <span style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>📁 Mes Demandes</span>
+                        <span style={{ background: '#1e293b', color: '#fff', padding: '2px 8px', borderRadius: '10px', fontSize: '12px' }}>{demandes.length}</span>
                     </button>
+
                     <button 
                         onClick={() => setActiveTab('nouvelle-demande')}
                         style={{
-                            padding: '12px 16px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            backgroundColor: activeTab === 'nouvelle-demande' ? '#2563eb' : 'transparent',
-                            color: '#ffffff',
-                            fontWeight: activeTab === 'nouvelle-demande' ? '600' : '400',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                            fontSize: '13px'
+                            display: 'flex', alignItems: 'center', width: '100%', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none',
+                            background: activeTab === 'nouvelle-demande' ? '#2563eb' : 'transparent',
+                            color: '#ffffff', fontWeight: '600', fontSize: '14px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s'
                         }}
                     >
                         ➕ Nouvelle demande
                     </button>
 
-                    <div style={{ fontSize: '11px', fontWeight: '700', color: '#94a3b8', padding: '16px 12px 6px', letterSpacing: '0.5px' }}>COMPTE</div>
                     <button 
-                        onClick={() => setActiveTab('parametres')}
+                        onClick={() => setActiveTab('profil')}
                         style={{
-                            padding: '12px 16px',
-                            borderRadius: '8px',
-                            border: 'none',
-                            backgroundColor: activeTab === 'parametres' ? '#2563eb' : 'transparent',
-                            color: '#ffffff',
-                            fontWeight: activeTab === 'parametres' ? '600' : '400',
-                            textAlign: 'left',
-                            cursor: 'pointer',
-                            display: 'flex',
-                            alignItems: 'center',
-                            gap: '12px',
-                            fontSize: '13px'
+                            display: 'flex', alignItems: 'center', width: '100%', gap: '12px', padding: '12px 16px', borderRadius: '10px', border: 'none',
+                            background: activeTab === 'profil' ? '#2563eb' : 'transparent',
+                            color: '#ffffff', fontWeight: '600', fontSize: '14px', cursor: 'pointer', textAlign: 'left', transition: 'all 0.2s'
                         }}
                     >
                         ⚙️ Profil & Paramètres
                     </button>
                 </div>
-            </div>
+            </aside>
 
-            {/* Main Content Area */}
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', height: '100vh', overflow: 'hidden' }}>
-                
-                {/* Header conforme au design exigé et positionné exactement comme le modèle délégué */}
-                <div style={{ height: '72px', backgroundColor: '#ffffff', borderBottom: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', padding: '0 32px', boxSizing: 'border-box' }}>
+            {/* Main Area */}
+            <main style={{ flex: 1, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+                <header style={{ padding: '16px 32px', background: '#ffffff', borderBottom: '1px solid #e2e8f0', display: 'flex', justifyContent: 'flex-end', alignItems: 'center', gap: '16px' }}>
                     
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-                        
-                        {/* Bouton de Notification */}
-                        <div style={{ position: 'relative' }}>
-                            <button 
-                                onClick={() => setShowNotifications(!showNotifications)}
-                                style={{ background: '#f1f5f9', border: 'none', borderRadius: '50%', width: '38px', height: '38px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', position: 'relative' }}
-                            >
-                                🔔
-                                {notificationsList.length > 0 && (
-                                    <span style={{ position: 'absolute', top: '4px', right: '4px', background: '#dc2626', color: '#fff', borderRadius: '50%', width: '8px', height: '8px' }}></span>
-                                )}
-                            </button>
+                    <button style={{ padding: '8px 10px', background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: '8px', cursor: 'pointer', position: 'relative' }}>
+                        🔔
+                        <span style={{ position: 'absolute', top: '4px', right: '4px', width: '8px', height: '8px', background: '#ef4444', borderRadius: '50%' }}></span>
+                    </button>
 
-                            {/* Dropdown Notifications */}
-                            {showNotifications && (
-                                <div style={{ position: 'absolute', right: 0, top: '45px', width: '300px', background: '#fff', boxShadow: '0 10px 15px -3px rgba(0,0,0,0.1)', borderRadius: '8px', border: '1px solid #e2e8f0', zIndex: 100, padding: '12px' }}>
-                                    <h4 style={{ margin: '0 0 10px 0', fontSize: '14px', color: '#0f172a' }}>Notifications</h4>
-                                    {notificationsList.length === 0 ? (
-                                        <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>Aucune notification</p>
-                                    ) : (
-                                        notificationsList.map((notif, idx) => (
-                                            <div key={idx} style={{ padding: '8px 0', borderBottom: idx < notificationsList.length - 1 ? '1px solid #f1f5f9' : 'none' }}>
-                                                <p style={{ fontSize: '12px', color: '#334155', margin: '0 0 4px 0' }}>{notif.message}</p>
-                                                <span style={{ fontSize: '10px', color: '#94a3b8' }}>{notif.date}</span>
-                                            </div>
-                                        ))
-                                    )}
-                                </div>
-                            )}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '12px', background: '#f8fafc', padding: '6px 16px', borderRadius: '30px', border: '1px solid #e2e8f0' }}>
+                        <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: '#0f172a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '12px' }}>
+                            RA
                         </div>
-
-                        {/* Bloc Profil : Nom dynamique + 'Espace Étudiant' en dessous */}
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', border: '1px solid #e2e8f0', padding: '6px 16px 6px 8px', borderRadius: '40px', background: '#f8fafc' }}>
-                            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: '#1e293b', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '13px' }}>
-                                {initials}
-                            </div>
-                            <div style={{ display: 'flex', flexDirection: 'column' }}>
-                                <span style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', letterSpacing: '-0.2px' }}>{nomComplet}</span>
-                                <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '500' }}>Espace Étudiant</span>
-                            </div>
+                        <div>
+                            <p style={{ fontSize: '13px', fontWeight: '700', color: '#0f172a', margin: 0 }}>RAHARINILANTO Anna Alexis</p>
+                            <p style={{ fontSize: '11px', color: '#64748b', margin: 0 }}>Espace Étudiant</p>
                         </div>
-
-                        {/* Bouton Actualiser */}
-                        <button 
-                            onClick={fetchProfileData}
-                            style={{ padding: '9px 14px', backgroundColor: '#f1f5f9', color: '#1e293b', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                            title="Actualiser les données"
-                        >
-                            🔄 Actualiser
-                        </button>
-
-                        {/* Bouton Déconnexion */}
-                        <button 
-                            onClick={handleDeconnexion}
-                            style={{ padding: '9px 14px', backgroundColor: '#fee2e2', color: '#dc2626', border: '1px solid #fecaca', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', fontSize: '12px', display: 'flex', alignItems: 'center', gap: '6px' }}
-                        >
-                            🚪 Déconnexion
-                        </button>
-
                     </div>
-                </div>
 
-                {/* Contenu dynamique selon l'onglet actif */}
-                <div style={{ flex: 1, padding: '32px', overflowY: 'auto', boxSizing: 'border-box', backgroundColor: '#f1f5f9' }}>
-                    
-                    {/* TAB: TABLEAU DE BORD */}
-                    {activeTab === 'tableau-de-bord' && (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '16px' }}>
-                                <div style={{ background: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <button 
+                        onClick={handleActualiser}
+                        style={{
+                            padding: '8px 14px', background: '#f8fafc', color: '#0f172a', border: '1px solid #cbd5e1', borderRadius: '8px',
+                            fontWeight: '600', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                        }}
+                    >
+                        🔄 Actualiser
+                    </button>
+
+                    <button 
+                        onClick={handleLogout}
+                        style={{
+                            padding: '8px 16px', background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', borderRadius: '8px',
+                            fontWeight: '600', fontSize: '13px', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '6px'
+                        }}
+                    >
+                        🚪 Déconnexion
+                    </button>
+                </header>
+
+                <div style={{ padding: '32px' }}>
+                    {successMsg && (
+                        <div style={{ background: '#f0fdf4', color: '#166534', padding: '14px 20px', borderRadius: '12px', marginBottom: '24px', border: '1px solid #bbf7d0', fontWeight: '600', fontSize: '14px' }}>
+                            ✅ {successMsg}
+                        </div>
+                    )}
+
+                    {/* 1. TABLEAU DE BORD */}
+                    {activeTab === 'dashboard' && (
+                        <div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '20px', marginBottom: '32px' }}>
+                                <div style={{ background: '#ffffff', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div>
-                                        <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>En cours</span>
-                                        <h3 style={{ fontSize: '24px', fontWeight: '700', color: '#d97706', margin: '4px 0 0 0' }}>{nbEnCours}</h3>
+                                        <p style={{ fontSize: '12px', fontWeight: '600', color: '#64748b', margin: '0 0 6px 0' }}>En cours</p>
+                                        <h3 style={{ fontSize: '24px', fontWeight: '800', color: '#b45309', margin: 0 }}>
+                                            {demandes.filter(d => d.statut.includes('En cours')).length}
+                                        </h3>
                                     </div>
-                                    <div style={{ background: '#fef3c7', padding: '10px', borderRadius: '8px' }}>⏳</div>
+                                    <div style={{ fontSize: '24px', background: '#fef3c7', padding: '10px', borderRadius: '12px' }}>⏳</div>
                                 </div>
-                                <div style={{ background: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ background: '#ffffff', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div>
-                                        <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>Prêtes / Validées</span>
-                                        <h3 style={{ fontSize: '24px', fontWeight: '700', color: '#16a34a', margin: '4px 0 0 0' }}>{nbValidees}</h3>
+                                        <p style={{ fontSize: '12px', fontWeight: '600', color: '#64748b', margin: '0 0 6px 0' }}>Prêtes / Validées</p>
+                                        <h3 style={{ fontSize: '24px', fontWeight: '800', color: '#15803d', margin: 0 }}>
+                                            {demandes.filter(d => d.statut.includes('Validée') || d.statut.includes('Prête')).length}
+                                        </h3>
                                     </div>
-                                    <div style={{ background: '#dcfce7', padding: '10px', borderRadius: '8px' }}>✅</div>
+                                    <div style={{ fontSize: '24px', background: '#dcfce7', padding: '10px', borderRadius: '12px' }}>✅</div>
                                 </div>
-                                <div style={{ background: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ background: '#ffffff', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div>
-                                        <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>Total demandes</span>
-                                        <h3 style={{ fontSize: '24px', fontWeight: '700', color: '#1e3a8a', margin: '4px 0 0 0' }}>{totalDemandes}</h3>
+                                        <p style={{ fontSize: '12px', fontWeight: '600', color: '#64748b', margin: '0 0 6px 0' }}>Total demandes</p>
+                                        <h3 style={{ fontSize: '24px', fontWeight: '800', color: '#1e3a8a', margin: 0 }}>{demandes.length}</h3>
                                     </div>
-                                    <div style={{ background: '#eff6ff', padding: '10px', borderRadius: '8px' }}>📂</div>
+                                    <div style={{ fontSize: '24px', background: '#eff6ff', padding: '10px', borderRadius: '12px' }}>📁</div>
                                 </div>
-                                <div style={{ background: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div style={{ background: '#ffffff', padding: '20px', borderRadius: '16px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                     <div>
-                                        <span style={{ fontSize: '13px', color: '#64748b', fontWeight: '500' }}>Parcours &amp; Mention</span>
-                                        <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#1e3a8a', margin: '4px 0 0 0' }}>{niveau} - {parcours} {mention ? `(${mention})` : ''}</h3>
+                                        <p style={{ fontSize: '12px', fontWeight: '600', color: '#64748b', margin: '0 0 6px 0' }}>Niveau Actuel</p>
+                                        <h3 style={{ fontSize: '22px', fontWeight: '800', color: '#0f172a', margin: 0 }}>L2 - GB</h3>
                                     </div>
-                                    <div style={{ background: '#eff6ff', padding: '10px', borderRadius: '8px' }}>🎓</div>
+                                    <div style={{ fontSize: '24px', background: '#f8fafc', padding: '10px', borderRadius: '12px' }}>🎓</div>
                                 </div>
                             </div>
 
                             <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '24px' }}>
-                                <div style={{ background: '#fff', padding: '24px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                                <div style={{ background: '#ffffff', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                                         <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a', margin: 0 }}>Dernières demandes soumises</h3>
-                                        <span onClick={() => setActiveTab('mes-demandes')} style={{ fontSize: '13px', color: '#2563eb', cursor: 'pointer', fontWeight: '600' }}>Voir tout →</span>
+                                        <button onClick={() => setActiveTab('mes-demandes')} style={{ background: 'transparent', border: 'none', color: '#2563eb', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>
+                                            Voir tout →
+                                        </button>
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-                                        {mesDemandes.length === 0 ? (
-                                            <p style={{ fontSize: '13px', color: '#64748b' }}>Aucune demande enregistrée pour le moment.</p>
-                                        ) : (
-                                            mesDemandes.slice(0, 3).map((demande, index) => (
-                                                <div key={index} style={{ border: '1px solid #f1f5f9', padding: '16px', borderRadius: '8px', background: '#f8fafc' }}>
-                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                                        <span style={{ fontSize: '11px', padding: '2px 8px', borderRadius: '4px', background: demande.statut && demande.statut.includes('Validée') ? '#dcfce7' : '#fef3c7', color: demande.statut && demande.statut.includes('Validée') ? '#16a34a' : '#d97706', fontWeight: '600' }}>
-                                                            {demande.statut}
-                                                        </span>
-                                                        <span style={{ fontSize: '12px', color: '#94a3b8' }}>{demande.date}</span>
-                                                    </div>
-                                                    <h4 style={{ fontSize: '15px', fontWeight: '700', color: '#0f172a', margin: '0 0 4px 0' }}>{demande.type}</h4>
-                                                    <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Motif : {demande.motif}</p>
+
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+                                        {demandes.map(d => (
+                                            <div key={d.id} style={{ padding: '16px', background: '#f8fafc', borderRadius: '12px', border: '1px solid #e2e8f0', position: 'relative' }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
+                                                    <span style={{ fontSize: '11px', fontWeight: '700', padding: '4px 10px', borderRadius: '6px', background: d.statut.includes('En cours') ? '#fef3c7' : '#dcfce7', color: d.statut.includes('En cours') ? '#b45309' : '#15803d' }}>
+                                                        {d.statut}
+                                                    </span>
+                                                    <span style={{ fontSize: '12px', color: '#64748b' }}>{d.date}</span>
                                                 </div>
-                                            ))
-                                        )}
+                                                <h4 style={{ fontSize: '15px', fontWeight: '700', color: '#0f172a', margin: '0 0 4px 0', textAlign: 'center' }}>{d.type}</h4>
+                                                <p style={{ fontSize: '13px', color: '#64748b', margin: 0, textAlign: 'center' }}>Motif : {d.motif}</p>
+                                            </div>
+                                        ))}
                                     </div>
                                 </div>
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                                    <div style={{ background: '#fff', padding: '20px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-                                        <h4 style={{ fontSize: '15px', fontWeight: '700', color: '#1e3a8a', marginTop: 0 }}>Retrait des documents</h4>
-                                        <p style={{ fontSize: '13px', color: '#64748b', lineHeight: '1.5' }}>Le bureau de la scolarité de l'EMIT est ouvert du lundi au vendredi de 8h00 à 15h00.</p>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+                                    <div style={{ background: '#ffffff', padding: '24px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                                        <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#1e3a8a', margin: '0 0 12px 0', textAlign: 'center' }}>Retrait des cartes</h3>
+                                        <p style={{ fontSize: '13px', color: '#475569', textAlign: 'center', margin: 0, lineHeight: '1.5' }}>
+                                            Le bureau de la scolarité est ouvert du lundi au vendredi de 8h00 à 15h00.
+                                        </p>
                                     </div>
-                                    <div style={{ background: '#fef08a', padding: '20px', borderRadius: '12px', border: '1px solid #fde047' }}>
-                                        <h4 style={{ fontSize: '15px', fontWeight: '700', color: '#854d0e', marginTop: 0 }}>Délai de traitement</h4>
-                                        <p style={{ fontSize: '13px', color: '#713f12', lineHeight: '1.5', margin: 0 }}>Comptez 48h ouvrées pour la validation d'un certificat ou relevé de notes.</p>
+                                    <div style={{ background: '#fef9c3', padding: '24px', borderRadius: '16px', border: '1px solid #fde047' }}>
+                                        <h3 style={{ fontSize: '16px', fontWeight: '700', color: '#854d0e', margin: '0 0 12px 0', textAlign: 'center' }}>Délai de traitement</h3>
+                                        <p style={{ fontSize: '13px', color: '#713f12', textAlign: 'center', margin: 0, lineHeight: '1.5' }}>
+                                            Comptez 48h ouvrées pour la validation d'un certificat ou relevé de notes.
+                                        </p>
                                     </div>
                                 </div>
                             </div>
                         </div>
                     )}
 
-                    {/* TAB: MES DEMANDES */}
+                    {/* 2. MES DEMANDES */}
                     {activeTab === 'mes-demandes' && (
-                        <div style={{ background: '#fff', padding: '32px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
+                        <div style={{ background: '#ffffff', padding: '32px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
                                 <div>
-                                    <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#0f172a', margin: '0 0 4px 0' }}>Historique de mes demandes</h2>
-                                    <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Suivi en temps réel de vos requêtes administratives stockées dans la base de données.</p>
+                                    <h2 style={{ fontSize: '18px', fontWeight: '800', color: '#0f172a', margin: '0 0 4px 0' }}>Historique de mes demandes</h2>
+                                    <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Suivi en temps réel de vos requêtes administratives auprès de la scolarité.</p>
                                 </div>
                                 <button 
                                     onClick={() => setActiveTab('nouvelle-demande')}
-                                    style={{ padding: '10px 18px', backgroundColor: '#2563eb', color: '#ffffff', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', fontSize: '13px', boxShadow: '0 2px 4px rgba(37,99,235,0.2)' }}
+                                    style={{ background: '#2563eb', color: '#fff', border: 'none', padding: '10px 18px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
                                 >
                                     + Nouvelle demande
                                 </button>
                             </div>
-                            
-                            <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
-                                   <thead>
-                                        <tr style={{ borderBottom: '2px solid #f1f5f9', color: '#64748b', fontSize: '12px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                            <th style={{ padding: '14px 16px' }}>Type de demande</th>
-                                            <th style={{ padding: '14px 16px' }}>Motif</th>
-                                            <th style={{ padding: '14px 16px' }}>Date de soumission</th>
-                                            <th style={{ padding: '14px 16px' }}>Statut actuel</th>
+
+                            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left', fontSize: '14px' }}>
+                                <thead>
+                                    <tr style={{ background: '#f8fafc', color: '#64748b', borderBottom: '1px solid #e2e8f0' }}>
+                                        <th style={{ padding: '12px 16px', fontWeight: '600' }}>TYPE DE DEMANDE</th>
+                                        <th style={{ padding: '12px 16px', fontWeight: '600' }}>MOTIF</th>
+                                        <th style={{ padding: '12px 16px', fontWeight: '600' }}>DATE DE SOUMISSION</th>
+                                        <th style={{ padding: '12px 16px', fontWeight: '600' }}>STATUT ACTUEL</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {demandes.map(d => (
+                                        <tr key={d.id} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                            <td style={{ padding: '16px', color: '#0f172a', fontWeight: '600', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                                                📄 {d.type}
+                                            </td>
+                                            <td style={{ padding: '16px', color: '#475569' }}>{d.motif}</td>
+                                            <td style={{ padding: '16px', color: '#64748b' }}>{d.date}</td>
+                                            <td style={{ padding: '16px' }}>
+                                                <span style={{ padding: '6px 12px', borderRadius: '20px', fontSize: '12px', fontWeight: '700', background: d.statut.includes('En cours') ? '#fef3c7' : '#dcfce7', color: d.statut.includes('En cours') ? '#b45309' : '#15803d' }}>
+                                                    {d.statut}
+                                                </span>
+                                            </td>
                                         </tr>
-                                   </thead>
-                                   <tbody>
-                                        {mesDemandes.length === 0 ? (
-                                            <tr>
-                                                <td colSpan="4" style={{ padding: '24px', textAlign: 'center', color: '#64748b', fontSize: '13px' }}>Aucune demande trouvée dans la base de données.</td>
-                                            </tr>
-                                        ) : (
-                                            mesDemandes.map((d, i) => (
-                                                <tr key={i} style={{ borderBottom: '1px solid #f8fafc', fontSize: '13px', transition: 'background 0.2s' }}>
-                                                    <td style={{ padding: '16px', fontWeight: '600', color: '#0f172a', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                                                        <span style={{ fontSize: '16px' }}>📄</span> {d.type}
-                                                    </td>
-                                                    <td style={{ padding: '16px', color: '#475569' }}>{d.motif}</td>
-                                                    <td style={{ padding: '16px', color: '#64748b' }}>{d.date}</td>
-                                                    <td style={{ padding: '16px' }}>
-                                                        <span style={{ fontSize: '12px', padding: '6px 12px', borderRadius: '20px', background: d.statut && d.statut.includes('Validée') ? '#dcfce7' : '#fef3c7', color: d.statut && d.statut.includes('Validée') ? '#15803d' : '#b45309', fontWeight: '600', display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
-                                                            {d.statut && d.statut.includes('Validée') ? '🟢' : '⏳'} {d.statut}
-                                                        </span>
-                                                    </td>
-                                                </tr>
-                                            ))
-                                        )}
-                                   </tbody>
-                                </table>
-                            </div>
+                                    ))}
+                                </tbody>
+                            </table>
                         </div>
                     )}
 
-                    {/* TAB: NOUVELLE DEMANDE */}
+                    {/* 3. NOUVELLE DEMANDE */}
                     {activeTab === 'nouvelle-demande' && (
-                        <div style={{ maxWidth: '700px', margin: '0 auto', background: '#fff', padding: '36px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-                            <div style={{ marginBottom: '24px', textAlign: 'center' }}>
-                                <div style={{ fontSize: '32px', marginBottom: '8px' }}>📝</div>
-                                <h2 style={{ fontSize: '22px', fontWeight: '700', color: '#0f172a', margin: '0 0 6px 0' }}>Effectuer une nouvelle demande</h2>
-                                <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Remplissez ce formulaire pour enregistrer votre requête directement dans la base de données.</p>
+                        <div style={{ background: '#ffffff', padding: '40px', borderRadius: '16px', border: '1px solid #e2e8f0', maxWidth: '750px', margin: '0 auto' }}>
+                            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                                <div style={{ fontSize: '32px', marginBottom: '8px' }}>📄✍️</div>
+                                <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', margin: '0 0 6px 0' }}>Effectuer une nouvelle demande</h2>
+                                <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Remplissez ce formulaire pour soumettre votre requête officielle au service de la scolarité.</p>
                             </div>
-                            
-                            <form onSubmit={handleSoumettreDemande} style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    <label style={{ fontSize: '13px', fontWeight: '600', color: '#334155' }}>
+
+                            <form onSubmit={handleSoumettreDemande}>
+                                <div style={{ marginBottom: '20px' }}>
+                                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '13px', color: '#0f172a', textAlign: 'center' }}>
                                         Type de document demandé :
                                     </label>
                                     <select 
-                                        value={typeDemande} 
-                                        onChange={(e) => setTypeDemande(e.target.value)} 
-                                        style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px', backgroundColor: '#f8fafc', color: '#0f172a', outline: 'none' }}
+                                        value={typeDocument} 
+                                        onChange={(e) => setTypeDocument(e.target.value)}
+                                        style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px', background: '#fff', outline: 'none' }}
                                     >
                                         <option value="Certificat de scolarité">Certificat de scolarité</option>
-                                        <option value="Relevé de notes">Relevé de notes officiel</option>
+                                        <option value="Relevé de notes">Relevé de notes</option>
                                         <option value="Attestation de réussite">Attestation de réussite</option>
                                     </select>
                                 </div>
 
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                    <label style={{ fontSize: '13px', fontWeight: '600', color: '#334155' }}>
+                                <div style={{ marginBottom: '24px' }}>
+                                    <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '13px', color: '#0f172a', textAlign: 'center' }}>
                                         Motif de la demande :
                                     </label>
                                     <textarea 
+                                        rows="4" 
                                         value={motif} 
                                         onChange={(e) => setMotif(e.target.value)} 
-                                        placeholder="Ex: Dossier de bourse, inscription concours, dossier bancaire..." 
-                                        style={{ width: '100%', padding: '12px 14px', borderRadius: '10px', border: '1px solid #cbd5e1', height: '110px', fontSize: '14px', boxSizing: 'border-box', backgroundColor: '#f8fafc', color: '#0f172a', outline: 'none', resize: 'vertical' }} 
+                                        required
+                                        placeholder="Ex: Dossier de bourse, inscription concours, dossier bancaire..."
+                                        style={{ width: '100%', padding: '12px 16px', borderRadius: '10px', border: '1px solid #cbd5e1', fontSize: '14px', outline: 'none', resize: 'vertical', boxSizing: 'border-box' }}
                                     />
                                 </div>
 
-                                <div style={{ display: 'flex', gap: '12px', marginTop: '10px' }}>
+                                <div style={{ display: 'flex', gap: '12px' }}>
                                     <button 
                                         type="submit" 
-                                        style={{ flex: 1, padding: '14px 16px', backgroundColor: '#2563eb', color: '#ffffff', border: 'none', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', fontSize: '14px', boxShadow: '0 4px 6px rgba(37,99,235,0.2)' }}
+                                        disabled={loading}
+                                        style={{ 
+                                            flex: 1, background: '#2563eb', color: '#ffffff', border: 'none', padding: '14px', borderRadius: '10px', 
+                                            fontWeight: '700', fontSize: '14px', cursor: 'pointer', textAlign: 'center' 
+                                        }}
                                     >
-                                        🚀 Enregistrer dans la base de données
+                                        {loading ? 'Envoi en cours...' : '🚀 Soumettre la demande'}
                                     </button>
                                     <button 
                                         type="button" 
-                                        onClick={() => setActiveTab('mes-demandes')}
-                                        style={{ padding: '14px 20px', backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', borderRadius: '10px', fontWeight: '600', cursor: 'pointer', fontSize: '14px' }}
+                                        onClick={() => setActiveTab('dashboard')}
+                                        style={{ 
+                                            background: '#f1f5f9', color: '#334155', border: '1px solid #cbd5e1', padding: '14px 24px', borderRadius: '10px', 
+                                            fontWeight: '700', fontSize: '14px', cursor: 'pointer' 
+                                        }}
                                     >
                                         Annuler
                                     </button>
@@ -492,92 +357,105 @@ export default function StudentDashboard() {
                         </div>
                     )}
 
-                    {/* TAB: PROFIL & PARAMÈTRES */}
-                    {activeTab === 'parametres' && (
-                        <div style={{ background: '#fff', padding: '32px', borderRadius: '16px', border: '1px solid #e2e8f0', boxShadow: '0 4px 6px -1px rgba(0,0,0,0.05)' }}>
-                            <h2 style={{ fontSize: '20px', fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>Profil &amp; Paramètres</h2>
-                            <p style={{ fontSize: '13px', color: '#64748b', marginBottom: '24px' }}>Gérez vos informations personnelles issues de la base de données</p>
-                            
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '40px', alignItems: 'start' }}>
-                                
-                                {/* Colonne Gauche : Aperçu profil */}
-                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '30px', border: '1px solid #f1f5f9', borderRadius: '12px', background: '#f8fafc' }}>
+                    {/* 4. PROFIL & PARAMÈTRES */}
+                    {activeTab === 'profil' && (
+                        <div>
+                            <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+                                <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#0f172a', margin: '0 0 4px 0' }}>Profil & Paramètres</h2>
+                                <p style={{ fontSize: '13px', color: '#64748b', margin: 0 }}>Modifier vos informations personnelles</p>
+                            </div>
+
+                            {profilMsg && (
+                                <div style={{ background: '#f0fdf4', color: '#166534', padding: '12px', borderRadius: '8px', marginBottom: '20px', textAlign: 'center', fontWeight: '600' }}>
+                                    {profilMsg}
+                                </div>
+                            )}
+
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '32px' }}>
+                                <div style={{ background: '#ffffff', padding: '32px', borderRadius: '16px', border: '1px solid #e2e8f0', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center' }}>
                                     <div style={{ position: 'relative', marginBottom: '16px' }}>
-                                        <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: '#1e293b', color: '#ffffff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '24px' }}>
-                                            {initials}
+                                        <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: '#0f172a', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '800', fontSize: '24px', margin: '0 auto' }}>
+                                            RA
                                         </div>
-                                        <span style={{ position: 'absolute', bottom: '0', right: '0', width: '14px', height: '14px', background: '#22c55e', border: '2px solid #fff', borderRadius: '50%' }}></span>
+                                        <span style={{ position: 'absolute', bottom: '4px', right: '4px', width: '14px', height: '14px', background: '#22c55e', border: '2px solid #fff', borderRadius: '50%' }}></span>
                                     </div>
-                                    <span style={{ fontSize: '16px', fontWeight: '700', color: '#0f172a', textAlign: 'center' }}>{nomComplet}</span>
-                                    <span style={{ fontSize: '12px', color: '#64748b', marginBottom: '16px' }}>{niveau} - {parcours} {mention ? `• ${mention}` : ''}</span>
-                                    <div style={{ width: '100%', borderTop: '1px solid #e2e8f0', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                        <span style={{ fontSize: '12px', color: '#475569' }}>✉ {email}</span>
-                                        <span style={{ fontSize: '12px', color: '#475569' }}>🎓 Mention : {mention || 'Non spécifiée'}</span>
+                                    <h3 style={{ fontSize: '16px', fontWeight: '800', color: '#0f172a', margin: '0 0 4px 0' }}>{nom}</h3>
+                                    <p style={{ fontSize: '13px', color: '#64748b', margin: '0 0 16px 0' }}>L2 - GB</p>
+                                    
+                                    <div style={{ borderTop: '1px solid #f1f5f9', width: '100%', paddingTop: '16px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                        <p style={{ fontSize: '13px', color: '#475569', margin: 0 }}>✉️ {email}</p>
+                                        <p style={{ fontSize: '13px', color: '#475569', margin: 0 }}>🎓 Gestion académique (L2)</p>
                                     </div>
                                 </div>
 
-                                {/* Colonne Droite : Formulaire Modifier mes Informations */}
-                                <form onSubmit={handleUpdateProfile} style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-                                    <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#0f172a', marginBottom: '4px' }}>Mettre à jour mes informations</h3>
+                                <div style={{ background: '#ffffff', padding: '32px', borderRadius: '16px', border: '1px solid #e2e8f0' }}>
+                                    <h3 style={{ fontSize: '15px', fontWeight: '700', color: '#0f172a', margin: '0 0 20px 0', textAlign: 'center' }}>Modifier mes informations</h3>
                                     
-                                    <label style={{ fontSize: '13px', fontWeight: '600', color: '#334155' }}>
-                                        Nom complet
-                                        <input 
-                                            type="text" 
-                                            value={nomComplet} 
-                                            onChange={(e) => setNomComplet(e.target.value)} 
-                                            style={{ width: '100%', padding: '10px', marginTop: '6px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }} 
-                                        />
-                                    </label>
+                                    <form onSubmit={handleUpdateProfil}>
+                                        <div style={{ marginBottom: '16px' }}>
+                                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#475569', marginBottom: '6px' }}>Nom complet</label>
+                                            <input 
+                                                type="text" 
+                                                value={nom} 
+                                                onChange={(e) => setNom(e.target.value)} 
+                                                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', boxSizing: 'border-box', outline: 'none' }}
+                                            />
+                                        </div>
 
-                                    <label style={{ fontSize: '13px', fontWeight: '600', color: '#334155' }}>
-                                        Email
-                                        <input 
-                                            type="email" 
-                                            value={email} 
-                                            onChange={(e) => setEmail(e.target.value)} 
-                                            style={{ width: '100%', padding: '10px', marginTop: '6px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }} 
-                                        />
-                                    </label>
+                                        <div style={{ marginBottom: '16px' }}>
+                                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#475569', marginBottom: '6px' }}>Email</label>
+                                            <input 
+                                                type="email" 
+                                                value={email} 
+                                                onChange={(e) => setEmail(e.target.value)} 
+                                                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', boxSizing: 'border-box', outline: 'none' }}
+                                            />
+                                        </div>
 
-                                    <label style={{ fontSize: '13px', fontWeight: '600', color: '#334155' }}>
-                                        Mot de passe actuel
-                                        <input 
-                                            type="password" 
-                                            placeholder="Requis pour changer le mot de passe" 
-                                            value={ancienMdp} 
-                                            onChange={(e) => setAncienMdp(e.target.value)} 
-                                            style={{ width: '100%', padding: '10px', marginTop: '6px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }} 
-                                        />
-                                    </label>
+                                        <div style={{ marginBottom: '16px' }}>
+                                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#475569', marginBottom: '6px' }}>Mot de passe actuel</label>
+                                            <input 
+                                                type="password" 
+                                                placeholder="Requis pour changer le mot de passe"
+                                                value={currentPassword} 
+                                                onChange={(e) => setCurrentPassword(e.target.value)} 
+                                                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', boxSizing: 'border-box', outline: 'none' }}
+                                            />
+                                        </div>
 
-                                    <label style={{ fontSize: '13px', fontWeight: '600', color: '#334155' }}>
-                                        Nouveau mot de passe (min. 8 caractères)
-                                        <input 
-                                            type="password" 
-                                            placeholder="••••••••" 
-                                            value={nouveauMdp} 
-                                            onChange={(e) => setNouveauMdp(e.target.value)} 
-                                            style={{ width: '100%', padding: '10px', marginTop: '6px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '13px', boxSizing: 'border-box' }} 
-                                        />
-                                    </label>
+                                        <div style={{ marginBottom: '24px' }}>
+                                            <label style={{ display: 'block', fontSize: '12px', fontWeight: '700', color: '#475569', marginBottom: '6px' }}>Nouveau mot de passe (min. 8 caractères)</label>
+                                            <input 
+                                                type="password" 
+                                                placeholder="••••••••"
+                                                value={newPassword} 
+                                                onChange={(e) => setNewPassword(e.target.value)} 
+                                                style={{ width: '100%', padding: '10px 14px', borderRadius: '8px', border: '1px solid #cbd5e1', fontSize: '14px', boxSizing: 'border-box', outline: 'none' }}
+                                            />
+                                        </div>
 
-                                    <div style={{ display: 'flex', gap: '12px', marginTop: '12px' }}>
-                                        <button type="submit" style={{ padding: '10px 20px', backgroundColor: '#1e293b', color: '#ffffff', border: 'none', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            💾 Enregistrer dans la BD
-                                        </button>
-                                        <button type="button" onClick={handleDeconnexion} style={{ padding: '10px 20px', backgroundColor: '#ffffff', color: '#1e293b', border: '1px solid #cbd5e1', borderRadius: '8px', fontWeight: '600', cursor: 'pointer', fontSize: '13px', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                                            🚪 Déconnexion
-                                        </button>
-                                    </div>
-                                </form>
-
+                                        <div style={{ display: 'flex', gap: '12px' }}>
+                                            <button 
+                                                type="submit" 
+                                                style={{ background: '#0f172a', color: '#fff', border: 'none', padding: '12px 20px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                                            >
+                                                💾 Enregistrer
+                                            </button>
+                                            <button 
+                                                type="button" 
+                                                onClick={handleLogout}
+                                                style={{ background: '#fef2f2', color: '#ef4444', border: '1px solid #fecaca', padding: '12px 20px', borderRadius: '8px', fontWeight: '700', fontSize: '13px', cursor: 'pointer' }}
+                                            >
+                                                🚪 Déconnexion
+                                            </button>
+                                        </div>
+                                    </form>
+                                </div>
                             </div>
                         </div>
                     )}
                 </div>
-
-            </div>
+            </main>
         </div>
     );
 }

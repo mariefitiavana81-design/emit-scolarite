@@ -25,7 +25,6 @@ const Login = () => {
 
             const { token, user } = response.data;
             
-            // Récupération sécurisée du rôle peu importe sa structure dans la réponse backend
             const role = response.data.role || user?.role || user?.type_utilisateur || user?.type || 'etudiant';
 
             localStorage.setItem('token', token);
@@ -35,9 +34,9 @@ const Login = () => {
             if (role === 'admin' || role === 'agent') {
                 navigate('/admin');
             } else if (role === 'delegue') {
-                navigate('/delegate'); // Redirige vers le dashboard spécifique du délégué
+                navigate('/delegate');
             } else if (role === 'etudiant') {
-                navigate('/student');  // Redirige vers le dashboard de l'étudiant
+                navigate('/student');
             } else {
                 navigate('/student');
             }
@@ -141,11 +140,9 @@ const Login = () => {
                     </div>
 
                     <div style={{ marginBottom: '28px' }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                            <label style={{ fontWeight: '700', fontSize: '12px', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                Mot de passe
-                            </label>
-                        </div>
+                        <label style={{ display: 'block', marginBottom: '8px', fontWeight: '700', fontSize: '12px', color: '#334155', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                            Mot de passe
+                        </label>
                         <input 
                             type="password" 
                             value={motDePasse} 
