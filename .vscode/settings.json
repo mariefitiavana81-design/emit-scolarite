@@ -1,0 +1,10 @@
+{
+  "cSpell.enabled": false,
+  "files.exclude": {
+    "**/.git": true,
+    "**/.history": true
+  },
+  "search.exclude": {
+    "**/.history": true
+  }
+}

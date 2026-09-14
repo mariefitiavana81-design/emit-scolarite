@@ -1,18 +1,14 @@
 const express = require('express');
 const router = express.Router();
-const pool = require('../config/db'); // ou const db = require('../config/db');
+const pool = require('../config/db');
 
-// 1. Récupérer tous les types de demandes (EF-01 : 6 types)
+// 1. Récupérer tous les types de demandes (EF-01)
 router.get('/types', async (req, res) => {
   try {
     const result = await pool.query('SELECT * FROM type_demande');
-    console.log('--- SUCCÈS : Types trouvés ---', result.rows);
     res.json(result.rows);
   } catch (err) {
-    // Affiche le message d'erreur exact fourni par Neon DB
-    console.error('--- ERREUR SQL DÉTAILLÉE ---');
-    console.error('Message :', err.message);
-    console.error('Code :', err.code);
+    console.error('Erreur SQL Types :', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -40,7 +36,7 @@ router.get('/demandes/:id_etudiant', async (req, res) => {
   }
 });
 
-// 3. Soumettre une demande (EF-01 & EF-03 : Statut initial 1 'Soumise')
+// 3. Soumettre une demande standard (EF-01 & EF-03 : Statut initial 1 'Soumise')
 router.post('/demandes', async (req, res) => {
   const { id_etudiant, id_type, motif, nombre_exemplaires } = req.body;
   try {
@@ -58,6 +54,30 @@ router.post('/demandes', async (req, res) => {
     res.status(201).json(result.rows[0]);
   } catch (err) {
     console.error('Erreur SQL Insertion :', err.message);
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// 4. Soumettre une demande libre délégué
+router.post('/demandes/delegue', async (req, res) => {
+  const { id_utilisateur, id_etudiant, id_type, motif, nombre_exemplaires } = req.body;
+  try {
+    const studentTarget = id_etudiant || id_utilisateur || 1;
+    const typeTarget = id_type || 1;
+    const query = `
+      INSERT INTO demande (date_soumission, motif, nombre_exemplaires, id_etudiant, id_type, id_statut)
+      VALUES (NOW(), $1, $2, $3, $4, 1)
+      RETURNING *
+    `;
+    const result = await pool.query(query, [
+      `[Demande Délégué] ${motif || ''}`,
+      nombre_exemplaires || 1,
+      studentTarget,
+      typeTarget
+    ]);
+    res.status(201).json(result.rows[0]);
+  } catch (err) {
+    console.error('Erreur SQL Demande Délégué :', err.message);
     res.status(500).json({ error: err.message });
   }
 });
